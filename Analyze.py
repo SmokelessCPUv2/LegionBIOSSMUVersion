@@ -40,7 +40,10 @@ def InnoextractAll(dir):
             if ".exe" in file:
                 exe_name=dir+"_Extracted/" + folder + "/" + file
                 outname = dir+"_Extracted/"+file[:-4]
-                os.system("7z x {} BIOS.fd -o{}".format(exe_name,outname))
+                os.system("7z x {} -o{}".format(exe_name,outname))
+                for file in os.listdir(outname):
+                    if ".fd" in file:
+                        shutil.move(outname+"/"+ file,outname+"/"+"BIOS.fd")
         shutil.rmtree(dir+"_Extracted/" + folder)
 
 
@@ -62,7 +65,7 @@ def PSPToolAnalizeAllDir(dir):
                                 if temp_sav[0] == entry.DIRECTORY_ENTRY_TYPES[entry.type]:
                                     exist = True
                             if exist == False:
-                                TempResult.append([entry.DIRECTORY_ENTRY_TYPES[entry.type],entry.get_readable_version(),entry.signed])
+                                TempResult.append([entry.DIRECTORY_ENTRY_TYPES[entry.type],entry.get_readable_version(),entry.signed,entry.rom_size,entry.size_uncompressed,entry.get_readable_signed_by(), entry.md5()])
                     except:
                         None
         Result.append([folder,TempResult])
@@ -89,16 +92,21 @@ def CreateTable(PSPReult,outName):
             for Type in LogType:
                 for inst in bios[1]:
                     if inst[0]==Type:
-                        f.write(VersionToDec(inst[1]))
-                        f.write( " ( {} )".format(inst[1]))
+                        f.write(VersionToDec(inst[1])+"<br/>")
+                        f.write( "( {} )<br/>".format(inst[1]))
+                        f.write( "Signed:  {}<br/>".format(inst[2]))
+                        f.write( "Signed by: {}<br/>".format(inst[5]))
+                        f.write( "Size: {}<br/>".format(inst[3]))
+                        f.write( "Size Uncompressed: {}<br/>".format(inst[4]))
+                        f.write( "MD5: {}<br/>".format(inst[6]))
                         f.write("|")
                         break;
             f.write("\n")
 
 DownloadInnoextract()
-BIOS_TO_CHECK = ["EUCN","HHCN", "GKCN"]
+BIOS_TO_CHECK = ["FSCN","EUCN", "GKCN", "GHCN"]
 for BIOS in BIOS_TO_CHECK:
-    DowloadFromLenovo("https://download.lenovo.com/consumer/mobiles/",BIOS+"{}WW",BIOS,0,60)
+   # DowloadFromLenovo("https://download.lenovo.com/consumer/mobiles/",BIOS+"{}WW",BIOS,0,60)
     InnoextractAll(BIOS)
     CreateTable(PSPToolAnalizeAllDir(BIOS),BIOS)
 
