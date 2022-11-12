@@ -6,11 +6,16 @@ import os
 import shutil
 from zipfile import ZipFile
 
-LogType = ['PSP_FW_BOOT_LOADER','SMU_OFFCHIP_FW','SMU_OFF_CHIP_FW_2']
+
+LogType = ['PSP_FW_BOOT_LOADER','PSP_FW_TRUSTED_OS','PSP_BOOT_TIME_TRUSTLETS','SMU_OFFCHIP_FW','SMU_OFF_CHIP_FW_2']
 
 def DownloadInnoextract():
     urllib.request.urlretrieve("https://constexpr.org/innoextract/files/innoextract-1.9-windows.zip","innoextract.zip")
     ZipFile("innoextract.zip").extractall(".")
+
+def DownloadUEFIExtract():
+    urllib.request.urlretrieve("https://github.com/LongSoft/UEFITool/releases/download/A62/UEFIExtract_NE_A62_win32.zip","UEFIExtract.zip")
+    ZipFile("UEFIExtract.zip").extractall(".")
 
 def DowloadFromLenovo(url,Pattern,Folder, start,end):
     try:
@@ -47,11 +52,19 @@ def InnoextractAll(dir):
         shutil.rmtree(dir+"_Extracted/" + folder)
 
 
-def PSPToolAnalizeAllDir(dir):
+def AnalizeAllDir(dir):
 
      Result = []
      for folder in os.listdir(dir+"_Extracted"):
-        psp = psptool.PSPTool.from_file(dir+"_Extracted/"+ folder + "/BIOS.fd")
+        Dirpath = dir+"_Extracted/"+ folder +"/"
+        path = Dirpath + "BIOS.fd"
+        psp = psptool.PSPTool.from_file(path)
+        os.system(".\\UEFIExtract.exe {} 29D40F30-E8BF-4803-88A6-4247A29A5318 -o {} -m body".format(path,Dirpath+"AMDVersion"))
+        with open(Dirpath+"AMDVersion/body_1.bin","rb") as f:
+            body = f.read()
+            AgesaHandle=body.find(b'\x41\x47\x45\x53\x41\x21\x56\x39') # Find "AGESA!V9"
+            VersionHandle=body[AgesaHandle+9:-1]
+            VersionHandle=VersionHandle[0: VersionHandle.find(b'\x00') ]# Find Extract Version String
         #Parse Main Directory
         TempResult = []
         for rom_index, rom in enumerate(psp.blob.roms):
@@ -68,7 +81,7 @@ def PSPToolAnalizeAllDir(dir):
                                 TempResult.append([entry.DIRECTORY_ENTRY_TYPES[entry.type],entry.get_readable_version(),entry.signed,entry.rom_size,entry.size_uncompressed,entry.get_readable_signed_by(), entry.md5()])
                     except:
                         None
-        Result.append([folder,TempResult])
+        Result.append([folder,TempResult,str(VersionHandle,"utf-8")])
      return Result
 
 def VersionToDec(version):
@@ -80,15 +93,17 @@ def VersionToDec(version):
 def CreateTable(PSPReult,outName):
     with open("{}.md".format(outName),"w") as f:
         f.write("| BIOS Name |")
+        f.write( "AGESA Version" + "|")
         for Header in LogType:
             f.write(Header + "|")
         f.write("\n")
-        f.write("| :-: |")
+        f.write("| :-: |:-: |")
         for Header in LogType:
             f.write(":-:|")
         f.write("\n")
         for bios in PSPReult:
             f.write("|" + bios[0] + "|")
+            f.write(bios[2] + "|")
             for Type in LogType:
                 for inst in bios[1]:
                     if inst[0]==Type:
@@ -104,11 +119,12 @@ def CreateTable(PSPReult,outName):
             f.write("\n")
 
 DownloadInnoextract()
+DownloadUEFIExtract()
 BIOS_TO_CHECK = ["FSCN","EUCN", "GKCN", "GHCN"]
 for BIOS in BIOS_TO_CHECK:
-   # DowloadFromLenovo("https://download.lenovo.com/consumer/mobiles/",BIOS+"{}WW",BIOS,0,60)
+    DowloadFromLenovo("https://download.lenovo.com/consumer/mobiles/",BIOS+"{}WW",BIOS,0,60)
     InnoextractAll(BIOS)
-    CreateTable(PSPToolAnalizeAllDir(BIOS),BIOS)
+    CreateTable(AnalizeAllDir(BIOS),BIOS)
 
 with open("README.md","w") as f:
     with open("Template.md","r") as template:
